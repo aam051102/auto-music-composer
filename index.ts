@@ -34,9 +34,9 @@ function makeSegment() {}
 
 function makeMelody(song: ISong) {
     const secondsPerBeat = 60 / song.bpm;
-    const blockLength = secondsPerBeat * BLOCK_BEAT_COUNT;
     const stepLength = secondsPerBeat / 4;
-    const segmentLength = secondsPerBeat * BLOCK_BEAT_COUNT;
+    const blockLength = secondsPerBeat * BLOCK_BEAT_COUNT;
+    const segmentLength = blockLength / 4;
 
     const baseNote = 60;
     const baseSemi = 0;
@@ -44,45 +44,70 @@ function makeMelody(song: ISong) {
         0: [0, 2, 4, 5, 7, 9, 11],
     };
 
-    const segmentStructure = [0, 0, 0, 1];
+    const melodyStructure = [0, 0, 0, 1];
 
     // Construct 4 potential segments
     const segments: INote[][] = [];
 
     for (let i = 0; i < 4; i++) {
-        const segmentNoteCount = Math.round(randRange(4, 8));
-        const segment: INote[] = [];
-
-        let leftMostTime = 0;
-
         // Construct notes
-        for (let j = 0; j < segmentNoteCount; j++) {
-            let noteTime = snapTime(
-                randRange(leftMostTime, leftMostTime + segmentLength / 8),
-                stepLength
-            );
+        const segmentStructure = [0, 0, 0, 1];
+        const segmentNotes: INote[][] = [];
 
-            const noteDuration = Math.max(
-                snapTime(randRange(0, segmentLength / 8), stepLength),
-                stepLength
-            );
+        const segmentNoteCount = Math.round(randRange(3, 16 / 2));
 
-            if (noteTime + noteDuration > segmentLength) {
-                // Prevent segment notes from exceeding segment
-                break;
+        for (let k = 0; k < 4; k++) {
+            const notes: INote[] = [];
+
+            let leftMostTime = 0;
+
+            for (let j = 0; j < segmentNoteCount; j++) {
+                let noteTime = snapTime(
+                    randRange(leftMostTime, leftMostTime + segmentLength / 4),
+                    stepLength
+                );
+
+                const noteDuration = Math.max(
+                    snapTime(randRange(0, segmentLength / 4), stepLength),
+                    stepLength
+                );
+
+                if (noteTime + noteDuration > segmentLength) {
+                    // Prevent segment notes from exceeding segment
+                    break;
+                }
+
+                leftMostTime = noteTime + noteDuration;
+
+                notes.push({
+                    midi:
+                        baseNote +
+                        noteKeys[baseSemi][
+                            Math.floor(
+                                randRange(0, noteKeys[baseSemi].length - 1)
+                            )
+                        ],
+                    time: noteTime,
+                    duration: noteDuration,
+                });
             }
 
-            leftMostTime = noteTime + noteDuration;
+            segmentNotes.push(notes);
+        }
 
-            segment.push({
-                midi:
-                    baseNote +
-                    noteKeys[baseSemi][
-                        Math.floor(randRange(0, noteKeys[baseSemi].length - 1))
-                    ],
-                time: noteTime,
-                duration: noteDuration,
-            });
+        // Construct melody from segments and segment structure
+        const segment: INote[] = [];
+        let timeOffset = 0;
+
+        for (const index of segmentStructure) {
+            segment.push(
+                ...segmentNotes[index].map((note) => ({
+                    ...note,
+                    time: note.time + timeOffset,
+                }))
+            );
+
+            timeOffset += segmentLength;
         }
 
         segments.push(segment);
@@ -92,7 +117,7 @@ function makeMelody(song: ISong) {
     const melody: INote[] = [];
     let timeOffset = 0;
 
-    for (const index of segmentStructure) {
+    for (const index of melodyStructure) {
         melody.push(
             ...segments[index].map((note) => ({
                 ...note,
@@ -100,7 +125,7 @@ function makeMelody(song: ISong) {
             }))
         );
 
-        timeOffset += segmentLength;
+        timeOffset += blockLength;
     }
 
     return melody;

@@ -1,4 +1,4 @@
-import { Midi } from "@tonejs/midi";
+import { Midi, Track } from "@tonejs/midi";
 import dayjs from "dayjs";
 import fs from "fs";
 import { INote, ISong } from "./types";
@@ -11,19 +11,26 @@ function snapTime(time: number, snap: number) {
     return time - (time % snap);
 }
 
+// NOTE: Overlapping existing melodies (and possibly doing some culling) could be a good way to generate solid new melodies!
+// TODO: Maybe snap to bars instead of steps? Or maybe just sometimes to steps? Maybe build melody in layers, starting with a few bar-length notes, then going shorter and fewer in notes.
+// TODO: Fix baseNote change resulting in no use of lower notes. Also just in general consider ways to permit different keys being used in melody - or maybe have that be a different layer?
+// TODO: For double-length parts (verses + bridges), consider having first 3/4th of second half be the same as the first half, and then just have the two endings be different?
+// TODO: Prioritize creating 4-step notes and 2-step notes and down-prioritize 1-step notes and 3-step notes.
+
 const song: ISong = {
     bpm: 130,
     signatureNum: 4,
     signatureDen: 4,
     structure: [
-        "VERSE",
-        "CHORUS",
-        "VERSE",
-        "CHORUS",
-        "BRIDGE",
-        "CHORUS",
-        "CHORUS",
+        { id: 0, length: 2 },
+        { id: 1, length: 1 },
+        { id: 2, length: 2 },
+        { id: 1, length: 1 },
+        { id: 3, length: 2 }, // VERSE - DO SOMETHING HERE I GUESS?
+        { id: 1, length: 1 },
+        { id: 1, length: 1 },
     ],
+    baseNote: 60,
 };
 
 const MIDI_RANGE = { start: 36, end: 108 };
@@ -32,24 +39,23 @@ const BLOCK_BEAT_COUNT = 16;
 
 function makeSegment() {}
 
-function makeMelody(song: ISong) {
+function makeMelody(song: ISong, blockCount: number) {
     const secondsPerBeat = 60 / song.bpm;
     const stepLength = secondsPerBeat / 4;
     const blockLength = secondsPerBeat * BLOCK_BEAT_COUNT;
     const segmentLength = blockLength / 4;
 
-    const baseNote = 60;
     const baseSemi = 0;
     const noteKeys: Record<number, number[]> = {
         0: [0, 2, 4, 5, 7, 9, 11],
     };
 
-    const melodyStructure = [0, 0, 0, 1];
+    const melodyStructure = [0, 1];
 
     // Construct 4 potential segments
     const segments: INote[][] = [];
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < blockCount; i++) {
         // Construct notes
         const segmentStructure = [0, 0, 0, 1];
         const segmentNotes: INote[][] = [];
@@ -81,7 +87,7 @@ function makeMelody(song: ISong) {
 
                 notes.push({
                     midi:
-                        baseNote +
+                        song.baseNote +
                         noteKeys[baseSemi][
                             Math.floor(
                                 randRange(0, noteKeys[baseSemi].length - 1)
@@ -117,9 +123,9 @@ function makeMelody(song: ISong) {
     const melody: INote[] = [];
     let timeOffset = 0;
 
-    for (const index of melodyStructure) {
+    for (let i = 0; i < blockCount; i++) {
         melody.push(
-            ...segments[index].map((note) => ({
+            ...segments[melodyStructure[i]].map((note) => ({
                 ...note,
                 time: note.time + timeOffset,
             }))
@@ -131,26 +137,42 @@ function makeMelody(song: ISong) {
     return melody;
 }
 
-function makePart(song: ISong) {
-    return makeMelody(song);
+function makePart(song: ISong, blockCount: number) {
+    return [makeMelody(song, blockCount)];
 }
 
 function makeSong(song: ISong) {
     const midi = new Midi();
     midi.header.setTempo(song.bpm);
-    const track = midi.addTrack();
 
-    //for (const segment of song.structure) {
-    const part = makePart(song);
+    const tracks: Record<number, Track> = {};
 
-    for (const item of part) {
-        track.addNote({
-            midi: item.midi,
-            time: item.time,
-            duration: item.duration,
-        });
+    const secondsPerBeat = 60 / song.bpm;
+    const blockLength = secondsPerBeat * BLOCK_BEAT_COUNT;
+
+    const parts: Record<number, INote[][]> = [];
+
+    let timeOffset = 0;
+
+    for (const segment of song.structure) {
+        const part = parts[segment.id] ?? makePart(song, segment.length);
+        parts[segment.id] = part;
+
+        for (let i = 0; i < part.length; i++) {
+            if (!tracks[i]) tracks[i] = midi.addTrack();
+
+            for (const item of part[i]) {
+                tracks[i].addNote({
+                    midi: item.midi,
+                    time: item.time + timeOffset,
+                    duration: item.duration,
+                    velocity: 0.75, // Hard-coded normalized velocity - temporary
+                });
+            }
+        }
+
+        timeOffset += blockLength * segment.length;
     }
-    //}
 
     return midi;
 }

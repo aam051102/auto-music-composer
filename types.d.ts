@@ -8,7 +8,8 @@ export type ISong = {
      * IGNORE SIGNATURE
      */
     signatureDen: number;
-    structure: ("VERSE" | "CHORUS" | "BRIDGE")[];
+    structure: { id: number; length: number }[];
+    baseNote: number;
 };
 
 export type INote = {

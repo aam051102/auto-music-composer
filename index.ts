@@ -72,13 +72,13 @@ function makeMelody(song: ISong) {
                 break;
             }
 
-            if (noteTime > leftMostTime) leftMostTime = noteTime;
+            leftMostTime = noteTime + noteDuration;
 
             segment.push({
                 midi:
                     baseNote +
                     noteKeys[baseSemi][
-                        Math.round(randRange(0, noteKeys[baseSemi].length))
+                        Math.floor(randRange(0, noteKeys[baseSemi].length - 1))
                     ],
                 time: noteTime,
                 duration: noteDuration,

@@ -8,8 +8,14 @@ export type ISong = {
      * IGNORE SIGNATURE
      */
     signatureDen: number;
-    structure: { id: number; length: number }[];
+    partStructure: number[];
     baseNote: number;
+    parts: Record<
+        number,
+        {
+            blockStructure: number[][];
+        }
+    >;
 };
 
 export type INote = {

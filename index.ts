@@ -23,15 +23,31 @@ const song: ISong = {
     bpm: 130,
     signatureNum: 4,
     signatureDen: 4,
-    structure: [
-        { id: 0, length: 2 },
-        { id: 1, length: 1 },
-        { id: 2, length: 2 },
-        { id: 1, length: 1 },
-        { id: 3, length: 2 }, // VERSE - DO SOMETHING HERE I GUESS?
-        { id: 1, length: 1 },
-        { id: 1, length: 1 },
-    ],
+    partStructure: [0, 1, 2, 1, 3, 1, 1],
+    parts: {
+        0: {
+            blockStructure: [
+                [0, 0, 0, 1],
+                [0, 0, 0, 2],
+            ],
+        },
+        1: {
+            blockStructure: [[0, 0, 0, 1]],
+        },
+        2: {
+            blockStructure: [
+                [0, 0, 0, 1],
+                [0, 0, 0, 2],
+            ],
+        },
+        3: {
+            // BRIDGE - DO SOMETHING HERE I GUESS?
+            blockStructure: [
+                [0, 0, 0, 1],
+                [0, 0, 0, 2],
+            ],
+        },
+    },
     baseNote: 60,
 };
 
@@ -41,106 +57,94 @@ const BLOCK_BEAT_COUNT = 16;
 
 function makeSegment() {}
 
-function makeMelody(song: ISong, blockCount: number) {
+function makeMelody(song: ISong, segmentId: number) {
     const secondsPerBeat = 60 / song.bpm;
-    const stepLength = secondsPerBeat / 4;
-    const blockLength = secondsPerBeat * BLOCK_BEAT_COUNT;
-    const segmentLength = blockLength / 4;
 
-    const baseSemi = 0;
+    /**
+     * A block is 4 bars
+     */
+    const blockLength = secondsPerBeat * BLOCK_BEAT_COUNT;
+
+    const stepLength = secondsPerBeat / 4;
+    const barLength = blockLength / 4;
+
+    const baseToneOffset = 0;
     const noteKeys: Record<number, number[]> = {
         0: [0, 2, 4, 5, 7, 9, 11],
     };
 
-    const melodyStructure = [0, 1];
-
-    // Construct 4 potential segments
-    const segments: INote[][] = [];
-
-    for (let i = 0; i < blockCount; i++) {
-        // Construct notes
-        const segmentStructure = [0, 0, 0, 1];
-        const segmentNotes: INote[][] = [];
-
+    function makeBar() {
         const segmentNoteCount = Math.round(randRange(3, 16 / 2));
 
-        for (let k = 0; k < 4; k++) {
-            const notes: INote[] = [];
+        // Create notes for bar
+        const notes: INote[] = [];
 
-            let leftMostTime = 0;
+        let leftMostTime = 0;
 
-            for (let j = 0; j < segmentNoteCount; j++) {
-                let noteTime = snapTime(
-                    randRange(leftMostTime, leftMostTime + segmentLength / 4),
-                    stepLength
-                );
+        for (let j = 0; j < segmentNoteCount; j++) {
+            const SNAP_TIME = stepLength * 2;
+            const SNAP_LENGTH = stepLength * 2;
 
-                const noteDuration = Math.max(
-                    snapTime(randRange(0, segmentLength / 4), stepLength),
-                    stepLength
-                );
-
-                if (noteTime + noteDuration > segmentLength) {
-                    // Prevent segment notes from exceeding segment
-                    break;
-                }
-
-                leftMostTime = noteTime + noteDuration;
-
-                notes.push({
-                    midi:
-                        song.baseNote +
-                        noteKeys[baseSemi][
-                            Math.floor(
-                                randRange(0, noteKeys[baseSemi].length - 1)
-                            )
-                        ],
-                    time: noteTime,
-                    duration: noteDuration,
-                });
-            }
-
-            segmentNotes.push(notes);
-        }
-
-        // Construct melody from segments and segment structure
-        const segment: INote[] = [];
-        let timeOffset = 0;
-
-        for (const index of segmentStructure) {
-            segment.push(
-                ...segmentNotes[index].map((note) => ({
-                    ...note,
-                    time: note.time + timeOffset,
-                }))
+            let noteTime = snapTime(
+                randRange(leftMostTime, leftMostTime + barLength / 4),
+                SNAP_TIME
             );
 
-            timeOffset += segmentLength;
+            const noteDuration = Math.max(
+                snapTime(randRange(0, barLength / 4), SNAP_LENGTH),
+                SNAP_LENGTH
+            );
+
+            if (noteTime + noteDuration > barLength) {
+                // Prevent segment notes from exceeding segment
+                break;
+            }
+
+            leftMostTime = noteTime + noteDuration;
+
+            notes.push({
+                midi:
+                    song.baseNote +
+                    noteKeys[baseToneOffset][
+                        Math.floor(
+                            randRange(0, noteKeys[baseToneOffset].length - 1)
+                        )
+                    ],
+                time: noteTime,
+                duration: noteDuration,
+            });
         }
 
-        segments.push(segment);
+        return notes;
     }
 
     // Construct melody from segments and segment structure
     const melody: INote[] = [];
     let timeOffset = 0;
+    const barMap: Record<number, INote[]> = {};
 
-    for (let i = 0; i < blockCount; i++) {
-        melody.push(
-            ...segments[melodyStructure[i]].map((note) => ({
-                ...note,
-                time: note.time + timeOffset,
-            }))
-        );
+    for (const blockStructure of song.parts[song.partStructure[segmentId]]
+        .blockStructure) {
+        for (const barId of blockStructure) {
+            const notes = barMap[barId] ? barMap[barId] : makeBar();
+            barMap[barId] = notes;
 
-        timeOffset += blockLength;
+            melody.push(
+                ...notes.map((note) => ({
+                    ...note,
+                    time: note.time + timeOffset,
+                }))
+            );
+
+            timeOffset += barLength;
+        }
     }
 
     return melody;
 }
 
-function makePart(song: ISong, blockCount: number) {
-    return [makeMelody(song, blockCount)];
+function makePart(song: ISong, segmentId: number) {
+    return [makeMelody(song, segmentId)];
 }
 
 function makeSong(song: ISong) {
@@ -156,9 +160,11 @@ function makeSong(song: ISong) {
 
     let timeOffset = 0;
 
-    for (const segment of song.structure) {
-        const part = parts[segment.id] ?? makePart(song, segment.length);
-        parts[segment.id] = part;
+    for (const segmentId of song.partStructure) {
+        const segment = song.parts[segmentId];
+
+        const part = parts[segmentId] ?? makePart(song, segmentId);
+        parts[segmentId] = part;
 
         for (let i = 0; i < part.length; i++) {
             if (!tracks[i]) tracks[i] = midi.addTrack();
@@ -173,7 +179,7 @@ function makeSong(song: ISong) {
             }
         }
 
-        timeOffset += blockLength * segment.length;
+        timeOffset += blockLength * segment.blockStructure.length;
     }
 
     return midi;

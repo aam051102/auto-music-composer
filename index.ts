@@ -17,7 +17,6 @@ function snapTime(time: number, snap: number) {
 // TODO: Prioritize creating 4-step notes and 2-step notes and down-prioritize 1-step notes and 3-step notes. ??
 // TODO: Have chord parts be interconnected across entire piece rather than being individually created per part.
 
-// TODO: Make BPM randomly generated between a range (70-90)
 // TODO: Do something to randomize song structure.
 // TODO: Modify beat parts to be more repetetive!!!
 
@@ -30,9 +29,9 @@ function snapTime(time: number, snap: number) {
  * - Copy over all the kicks, hats, and snares to new tracks with new instruments because FL Studio messes up the instrument.
  */
 const song: ISong = {
-    bpm: 80,
-    signatureNum: 4,
-    signatureDen: 4,
+    bpm: Math.round(randRange(74, 96)),
+    signatureNum: 4, // THIS IS EFFECTIVELY USELESS CURRENTLY
+    signatureDen: 4, // THIS IS EFFECTIVELY USELESS CURRENTLY
     partStructure: [0, 1, 2, 1, 3, 1, 1],
     parts: {
         0: {

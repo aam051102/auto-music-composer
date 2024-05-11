@@ -17,13 +17,16 @@ function snapTime(time: number, snap: number) {
 // TODO: Prioritize creating 4-step notes and 2-step notes and down-prioritize 1-step notes and 3-step notes. ??
 // TODO: Have chord parts be interconnected across entire piece rather than being individually created per part.
 
-// TODO: Add add base parts, add beat parts (kick+hat+snare ?) - make some sort of algorithm change in makeMelody to permit these different sorts of structures and use-cases.
+// TODO: Make BPM randomly generated between a range (70-90)
+// TODO: Do something to randomize song structure.
+// TODO: Modify beat parts to be more repetetive and less reliant on time offset
 
 /**
  * Song - Currently focused on Lo-Fi
  * When importing into FL Studio:
  * - Move chords down 1 octave
  * - Set instrument for melody and chords to be LABS Soft Piano - probably turned up to 200% or above.
+ * - Set instrument for bass to be Accoustic Bass and move down an octave.
  */
 const song: ISong = {
     bpm: 80,
@@ -212,7 +215,7 @@ function makeChords(song: ISong, partId: number) {
 
         // Bass
         notes.push({
-            midi: rootTone - 12,
+            midi: rootTone,
             time: 0,
             duration: barLength,
             velocity: 0.65,
@@ -245,8 +248,145 @@ function makeChords(song: ISong, partId: number) {
     return melody;
 }
 
+/**
+ * Automatically constructs bass from chords
+ */
+function makeAutoBass(chords: INote[]) {
+    const bass: INote[] = [];
+    const lowestNotes: Record<number, INote> = {};
+
+    for (const note of chords) {
+        if (
+            !lowestNotes[note.time] ||
+            note.midi - lowestNotes[note.time].midi
+        ) {
+            lowestNotes[note.time] = note;
+        }
+    }
+
+    for (const note of Object.values(lowestNotes)) {
+        bass.push({
+            duration: note.duration,
+            time: note.time,
+            midi: note.midi,
+            velocity: 0.75,
+        });
+    }
+
+    return bass;
+}
+
+function makeBeats(song: ISong, partId: number) {
+    const secondsPerBeat = 60 / song.bpm;
+
+    /**
+     * A block is 4 bars
+     */
+    const blockLength = secondsPerBeat * BLOCK_BEAT_COUNT;
+
+    const stepLength = secondsPerBeat / 4;
+    const barLength = blockLength / 4;
+
+    function makeBar() {
+        const segmentNoteCount = Math.round(randRange(2, 4));
+
+        // Create notes for bar
+        const notes: INote[] = [];
+
+        let leftMostTime = 0;
+
+        for (let j = 0; j < segmentNoteCount; j++) {
+            const SNAP_TIME = stepLength * 2;
+
+            let noteTime = snapTime(
+                randRange(leftMostTime, leftMostTime + barLength / 4),
+                SNAP_TIME
+            );
+
+            const noteDuration = stepLength;
+
+            if (noteTime + noteDuration > barLength) {
+                // Prevent segment notes from exceeding segment
+                break;
+            }
+
+            leftMostTime = noteTime + noteDuration;
+
+            notes.push({
+                midi: 60,
+                time: noteTime,
+                duration: noteDuration,
+                velocity: 0.75,
+            });
+        }
+
+        return notes;
+    }
+
+    // Kicks
+    const kicks: INote[] = [];
+
+    let timeOffset = 0;
+
+    for (let i = 0; i < 4 * song.parts[partId].blockStructure.length; i++) {
+        const notes = makeBar();
+
+        kicks.push(
+            ...notes.map((note) => ({
+                ...note,
+                time: note.time + timeOffset,
+            }))
+        );
+
+        timeOffset += barLength;
+    }
+
+    // Hats
+    const hats: INote[] = [];
+
+    timeOffset = 0;
+
+    for (let i = 0; i < 4 * song.parts[partId].blockStructure.length; i++) {
+        const notes = makeBar();
+
+        hats.push(
+            ...notes.map((note) => ({
+                ...note,
+                time: note.time + timeOffset,
+            }))
+        );
+
+        timeOffset += barLength;
+    }
+
+    // Snares
+    const snares: INote[] = [];
+
+    timeOffset = 0;
+
+    for (let i = 0; i < 4 * song.parts[partId].blockStructure.length; i++) {
+        const notes = makeBar();
+
+        snares.push(
+            ...notes.map((note) => ({
+                ...note,
+                time: note.time + timeOffset,
+            }))
+        );
+
+        timeOffset += barLength;
+    }
+
+    return [kicks, hats, snares];
+}
+
 function makePart(song: ISong, partId: number) {
-    return [makeMelody(song, partId), makeChords(song, partId)];
+    const melody = makeMelody(song, partId);
+    const chords = makeChords(song, partId);
+    const bass = makeAutoBass(chords);
+    const beats = makeBeats(song, partId);
+
+    return [melody, chords, bass, ...beats];
 }
 
 function makeSong(song: ISong) {

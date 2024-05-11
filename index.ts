@@ -17,6 +17,8 @@ function snapTime(time: number, snap: number) {
 // TODO: For double-length parts (verses + bridges), consider having first 3/4th of second half be the same as the first half, and then just have the two endings be different?
 // TODO: Prioritize creating 4-step notes and 2-step notes and down-prioritize 1-step notes and 3-step notes.
 
+// TODO: Add chord parts, add base parts, add beat parts (kick+hat+snare ?) - make some sort of algorithm change in makeMelody to permit these different sorts of structures and use-cases.
+
 const song: ISong = {
     bpm: 130,
     signatureNum: 4,

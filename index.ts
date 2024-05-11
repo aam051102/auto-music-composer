@@ -14,13 +14,19 @@ function snapTime(time: number, snap: number) {
 // NOTE: Overlapping existing melodies (and possibly doing some culling) could be a good way to generate solid new melodies!
 // TODO: Maybe snap to bars instead of steps? Or maybe just sometimes to steps? Maybe build melody in layers, starting with a few bar-length notes, then going shorter and fewer in notes.
 // TODO: Fix baseNote change resulting in no use of lower notes. Also just in general consider ways to permit different keys being used in melody - or maybe have that be a different layer?
-// TODO: For double-length parts (verses + bridges), consider having first 3/4th of second half be the same as the first half, and then just have the two endings be different?
-// TODO: Prioritize creating 4-step notes and 2-step notes and down-prioritize 1-step notes and 3-step notes.
+// TODO: Prioritize creating 4-step notes and 2-step notes and down-prioritize 1-step notes and 3-step notes. ??
+// TODO: Have chord parts be interconnected across entire piece rather than being individually created per part.
 
-// TODO: Add chord parts, add base parts, add beat parts (kick+hat+snare ?) - make some sort of algorithm change in makeMelody to permit these different sorts of structures and use-cases.
+// TODO: Add add base parts, add beat parts (kick+hat+snare ?) - make some sort of algorithm change in makeMelody to permit these different sorts of structures and use-cases.
 
+/**
+ * Song - Currently focused on Lo-Fi
+ * When importing into FL Studio:
+ * - Move chords down 1 octave
+ * - Set instrument for melody and chords to be LABS Soft Piano - probably turned up to 200% or above.
+ */
 const song: ISong = {
-    bpm: 130,
+    bpm: 80,
     signatureNum: 4,
     signatureDen: 4,
     partStructure: [0, 1, 2, 1, 3, 1, 1],
@@ -30,14 +36,23 @@ const song: ISong = {
                 [0, 0, 0, 1],
                 [0, 0, 0, 2],
             ],
+            chordStructure: [
+                [0, 1, 2, 3],
+                [0, 1, 2, 4],
+            ],
         },
         1: {
             blockStructure: [[0, 0, 0, 1]],
+            chordStructure: [[0, 1, 2, 3]],
         },
         2: {
             blockStructure: [
                 [0, 0, 0, 1],
                 [0, 0, 0, 2],
+            ],
+            chordStructure: [
+                [0, 1, 2, 3],
+                [0, 1, 2, 4],
             ],
         },
         3: {
@@ -46,16 +61,19 @@ const song: ISong = {
                 [0, 0, 0, 1],
                 [0, 0, 0, 2],
             ],
+            chordStructure: [
+                [5, 6, 7, 8],
+                [5, 6, 7, 9],
+            ],
         },
     },
     baseNote: 60,
+    type: "major",
 };
 
 const MIDI_RANGE = { start: 36, end: 108 };
 const BLOCK_STEP_COUNT = 64;
 const BLOCK_BEAT_COUNT = 16;
-
-function makeSegment() {}
 
 function makeMelody(song: ISong, partId: number) {
     const secondsPerBeat = 60 / song.bpm;
@@ -112,6 +130,7 @@ function makeMelody(song: ISong, partId: number) {
                     ],
                 time: noteTime,
                 duration: noteDuration,
+                velocity: 0.75,
             });
         }
 
@@ -142,8 +161,92 @@ function makeMelody(song: ISong, partId: number) {
     return melody;
 }
 
+function makeChords(song: ISong, partId: number) {
+    const secondsPerBeat = 60 / song.bpm;
+
+    /**
+     * A block is 4 bars
+     */
+    const blockLength = secondsPerBeat * BLOCK_BEAT_COUNT;
+
+    const stepLength = secondsPerBeat / 4;
+    const barLength = blockLength / 4;
+
+    const baseToneOffset = 0;
+    const noteKeys: Record<number, number[]> = {
+        0: [0, 2, 4, 5, 7, 9, 11],
+    };
+
+    function makeBar() {
+        // Create notes for bar
+        const notes: INote[] = [];
+
+        const rootTone =
+            song.baseNote +
+            noteKeys[baseToneOffset][
+                Math.floor(randRange(0, noteKeys[baseToneOffset].length - 1))
+            ];
+
+        const stamps = {
+            major: [
+                [0, 4, 7], // Major 3rd
+                [0, 4, 7, 11], // Major 5th
+            ],
+            minor: [
+                [0, 3, 7], // Minor 3rd
+                [0, 3, 7, 10], // Minor 5th
+                [0, 3, 7, 10, 14], // Minor 9th
+            ],
+        };
+        const stampIndex = Math.floor(randRange(0, stamps[song.type].length));
+        const stamp = stamps[song.type][stampIndex];
+
+        for (const stampOffset of stamp) {
+            notes.push({
+                midi: rootTone + stampOffset,
+                time: 0,
+                duration: barLength,
+                velocity: 0.65,
+            });
+        }
+
+        // Bass
+        notes.push({
+            midi: rootTone - 12,
+            time: 0,
+            duration: barLength,
+            velocity: 0.65,
+        });
+
+        return notes;
+    }
+
+    // Construct melody from segments and segment structure
+    const melody: INote[] = [];
+    let timeOffset = 0;
+    const barMap: Record<number, INote[]> = {};
+
+    for (const blockStructure of song.parts[partId].chordStructure) {
+        for (const barId of blockStructure) {
+            const notes = barMap[barId] ? barMap[barId] : makeBar();
+            barMap[barId] = notes;
+
+            melody.push(
+                ...notes.map((note) => ({
+                    ...note,
+                    time: note.time + timeOffset,
+                }))
+            );
+
+            timeOffset += barLength;
+        }
+    }
+
+    return melody;
+}
+
 function makePart(song: ISong, partId: number) {
-    return [makeMelody(song, partId)];
+    return [makeMelody(song, partId), makeChords(song, partId)];
 }
 
 function makeSong(song: ISong) {
@@ -173,7 +276,7 @@ function makeSong(song: ISong) {
                     midi: item.midi,
                     time: item.time + timeOffset,
                     duration: item.duration,
-                    velocity: 0.75, // Hard-coded normalized velocity - temporary
+                    velocity: item.velocity,
                 });
             }
         }

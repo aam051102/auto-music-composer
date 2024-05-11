@@ -20,12 +20,18 @@ export type ISong = {
         number,
         {
             blockStructure: number[][];
+            /**
+             * Chord IDs persist across parts.
+             */
+            chordStructure: number[][];
         }
     >;
+    type: "major" | "minor";
 };
 
 export type INote = {
     midi: number;
     time: number;
     duration: number;
+    velocity: number;
 };

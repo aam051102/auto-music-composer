@@ -8,8 +8,14 @@ export type ISong = {
      * IGNORE SIGNATURE
      */
     signatureDen: number;
+    /**
+     * A list of part IDs, a part being equivalent to a chorus, verse, bridge, etc.
+     */
     partStructure: number[];
     baseNote: number;
+    /**
+     * A map of part IDs to data on the part.
+     */
     parts: Record<
         number,
         {

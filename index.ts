@@ -57,7 +57,7 @@ const BLOCK_BEAT_COUNT = 16;
 
 function makeSegment() {}
 
-function makeMelody(song: ISong, segmentId: number) {
+function makeMelody(song: ISong, partId: number) {
     const secondsPerBeat = 60 / song.bpm;
 
     /**
@@ -123,8 +123,7 @@ function makeMelody(song: ISong, segmentId: number) {
     let timeOffset = 0;
     const barMap: Record<number, INote[]> = {};
 
-    for (const blockStructure of song.parts[song.partStructure[segmentId]]
-        .blockStructure) {
+    for (const blockStructure of song.parts[partId].blockStructure) {
         for (const barId of blockStructure) {
             const notes = barMap[barId] ? barMap[barId] : makeBar();
             barMap[barId] = notes;
@@ -143,8 +142,8 @@ function makeMelody(song: ISong, segmentId: number) {
     return melody;
 }
 
-function makePart(song: ISong, segmentId: number) {
-    return [makeMelody(song, segmentId)];
+function makePart(song: ISong, partId: number) {
+    return [makeMelody(song, partId)];
 }
 
 function makeSong(song: ISong) {
@@ -160,16 +159,16 @@ function makeSong(song: ISong) {
 
     let timeOffset = 0;
 
-    for (const segmentId of song.partStructure) {
-        const segment = song.parts[segmentId];
+    for (const partId of song.partStructure) {
+        const part = song.parts[partId];
 
-        const part = parts[segmentId] ?? makePart(song, segmentId);
-        parts[segmentId] = part;
+        const partNotes = parts[partId] ?? makePart(song, partId);
+        parts[partId] = partNotes;
 
-        for (let i = 0; i < part.length; i++) {
+        for (let i = 0; i < partNotes.length; i++) {
             if (!tracks[i]) tracks[i] = midi.addTrack();
 
-            for (const item of part[i]) {
+            for (const item of partNotes[i]) {
                 tracks[i].addNote({
                     midi: item.midi,
                     time: item.time + timeOffset,
@@ -179,7 +178,7 @@ function makeSong(song: ISong) {
             }
         }
 
-        timeOffset += blockLength * segment.blockStructure.length;
+        timeOffset += blockLength * part.blockStructure.length;
     }
 
     return midi;

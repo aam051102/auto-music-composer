@@ -19,7 +19,7 @@ function snapTime(time: number, snap: number) {
 
 // TODO: Make BPM randomly generated between a range (70-90)
 // TODO: Do something to randomize song structure.
-// TODO: Modify beat parts to be more repetetive and less reliant on time offset
+// TODO: Modify beat parts to be more repetetive!!!
 
 /**
  * Song - Currently focused on Lo-Fi
@@ -27,6 +27,7 @@ function snapTime(time: number, snap: number) {
  * - Move chords down 1 octave
  * - Set instrument for melody and chords to be LABS Soft Piano - probably turned up to 200% or above.
  * - Set instrument for bass to be Accoustic Bass and move down an octave.
+ * - Copy over all the kicks, hats, and snares to new tracks with new instruments because FL Studio messes up the instrument.
  */
 const song: ISong = {
     bpm: 80,
@@ -287,21 +288,18 @@ function makeBeats(song: ISong, partId: number) {
     const stepLength = secondsPerBeat / 4;
     const barLength = blockLength / 4;
 
-    function makeBar() {
-        const segmentNoteCount = Math.round(randRange(2, 4));
+    function makeBar(minNoteCount: number, maxNoteCount: number) {
+        const segmentNoteCount = Math.round(
+            randRange(minNoteCount, maxNoteCount)
+        );
 
         // Create notes for bar
         const notes: INote[] = [];
 
-        let leftMostTime = 0;
-
         for (let j = 0; j < segmentNoteCount; j++) {
             const SNAP_TIME = stepLength * 2;
 
-            let noteTime = snapTime(
-                randRange(leftMostTime, leftMostTime + barLength / 4),
-                SNAP_TIME
-            );
+            let noteTime = snapTime(randRange(0, barLength), SNAP_TIME);
 
             const noteDuration = stepLength;
 
@@ -309,8 +307,6 @@ function makeBeats(song: ISong, partId: number) {
                 // Prevent segment notes from exceeding segment
                 break;
             }
-
-            leftMostTime = noteTime + noteDuration;
 
             notes.push({
                 midi: 60,
@@ -320,7 +316,20 @@ function makeBeats(song: ISong, partId: number) {
             });
         }
 
-        return notes;
+        // Culling
+        const finalNotes: INote[] = [];
+
+        let heldTimes = new Set<number>();
+        for (const note of notes) {
+            if (heldTimes.has(note.time)) {
+                continue;
+            }
+
+            heldTimes.add(note.time);
+            finalNotes.push(note);
+        }
+
+        return finalNotes;
     }
 
     // Kicks
@@ -329,7 +338,7 @@ function makeBeats(song: ISong, partId: number) {
     let timeOffset = 0;
 
     for (let i = 0; i < 4 * song.parts[partId].blockStructure.length; i++) {
-        const notes = makeBar();
+        const notes = makeBar(2, 4);
 
         kicks.push(
             ...notes.map((note) => ({
@@ -347,7 +356,7 @@ function makeBeats(song: ISong, partId: number) {
     timeOffset = 0;
 
     for (let i = 0; i < 4 * song.parts[partId].blockStructure.length; i++) {
-        const notes = makeBar();
+        const notes = makeBar(6, 8);
 
         hats.push(
             ...notes.map((note) => ({
@@ -365,7 +374,7 @@ function makeBeats(song: ISong, partId: number) {
     timeOffset = 0;
 
     for (let i = 0; i < 4 * song.parts[partId].blockStructure.length; i++) {
-        const notes = makeBar();
+        const notes = makeBar(1, 2);
 
         snares.push(
             ...notes.map((note) => ({
